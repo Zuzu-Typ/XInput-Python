@@ -4,8 +4,6 @@ from ctypes import Structure, POINTER
 
 from math import sqrt
 
-import glm
-
 XINPUT_DLL_NAMES = (
     "XInput1_4.dll",
     "XInput9_1_0.dll",
@@ -19,7 +17,7 @@ libXInput = None
 for name in XINPUT_DLL_NAMES:
     found = ctypes.util.find_library(name)
     if found:
-        libXInput = ctypes.CDLL(found)
+        libXInput = ctypes.WinDLL(found)
         break
 
 if not libXInput:
@@ -108,6 +106,14 @@ def XInputGetBatteryInformation(dwUserIndex, devType, batteryInformation):
 class XInputNotConnectedError(Exception):
     pass
 
+def get_connected():
+    state = XINPUT_STATE()
+    out = [False] * 4
+    for i in range(4):
+        out[i] = (XInputGetState(i, state) == 0)
+
+    return tuple(out)
+
 def get_state(user_index):
     state = XINPUT_STATE()
     res = XInputGetState(user_index, state)
@@ -135,7 +141,7 @@ def set_vibration(user_index, left_speed, right_speed):
     vibration.wLeftMotorSpeed = int(left_speed)
     vibration.wRightMotorSpeed = int(right_speed)
 
-    return XInputSetState(user_index, vibration)
+    return XInputSetState(user_index, vibration) == 0
 
 def get_button_values(state):
     wButtons = state.Gamepad.wButtons
@@ -211,5 +217,5 @@ def get_thumb_values(state):
     else:
         magR = 0
 
-    return (glm.vec2(normLX, normLY) * normMagL, glm.vec2(normRX, normRY) * normMagR)
+    return ((normLX * normMagL, normLY * normMagL), (normRX * normMagR, normRY * normMagR))
         
