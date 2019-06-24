@@ -1,10 +1,16 @@
-[title]XInput[/title]
+[title]XInput-Python[/title]
 [subtitle]A simple to use interface to the XInput API for Python.[/subtitle]
-[b]XInput[/] provides a few simple methods that can be used to query controller information.
+[b]XInput-Python[/] provides a few simple methods that can be used to query controller information.
 
 [s1]Tiny Documentation[/]
-[s2]Using XInput[/]
-XInput provides a few functions:
+[i]XInput is Windows only[/]
+[s2]Installation[/]
+XInput-Python is available from the [url=https://pypi.org]PyPI[/] using
+[code]pip install XInput-Python[/code]
+It can be inmported like this:
+[code]import XInput[/code]
+[s2]Using XInput-Python[/]
+XInput-Python provides a few functions:
 [code]get_connected() -> (bool, bool, bool, bool)[/code] Query which controllers are connected (note: don't query each frame)
 
 [code]get_state(user_index) -> State[/code] Get the State of the controller [code]user_index[/code]
@@ -18,3 +24,64 @@ XInput provides a few functions:
 [code]set_vibration(user_index, left_speed, right_speed) -> bool (Success)[/code] Sets the vibration of the left and right motors of [code]user_index[/] to values between [code]0[/] and [code]65535[/] or in range [code]0.0[/] to [code]1.0[/] respectively.
 
 [code]get_battery_information(user_index) -> (<type>, <level>)[/] Returns the battery information for [code]user_index[/]
+
+[s3]Using Events[/]
+You can also use the Event-system:
+[code]events = get_events()[/code]
+
+[code]get_events[/code] will return a generator that yields instances of the [code]Event[/code] class.
+
+The [code]Event[/code] class always has the following members:
+[code]Event.user_index[/code] (range 0 to 3) - the id of the controller that issued this event
+[code]Event.type[/code] - which type of event was issued
+
+The following events exist:
+[code]XInput.EVENT_CONNECTED == 1[/code] - a controller with this [code]user_index[/code] was connected (this event will even occur if the controller was connected before the script was started)
+
+[code]XInput.EVENT_DISCONNECTED == 2[/code] - a controller with this [code]user_index[/code] was disconnected
+
+[code]XInput.EVENT_BUTTON_PRESSED == 3[/code] - a button was pressed on the controller [code]user_index[/code]
+
+[code]XInput.EVENT_BUTTON_RELEASED == 4[/code] - a button was released on the controller [code]user_index[/code]
+
+[code]XInput.EVENT_TRIGGER_MOVED == 5[/code] - a trigger was moved on the controller [code]user_index[/code]
+
+[code]XInput.EVENT_STICK_MOVED == 6[/code] - a thumb stick was moved on the controller [code]user_index[/code]
+
+[b]Button Events[/]
+All button related Events have the following additional members:
+[code]Event.button_id[/code] - the XInput numerical representation of the button
+[code]Event.button[/code] - a literal representation of the button
+
+The following buttons exist:
+[code]"DPAD_UP" == 1
+"DPAD_DOWN" == 2
+"DPAD_LEFT" == 4
+"DPAD_RIGHT" == 8
+"START" == 16
+"BACK" == 32
+"LEFT_THUMB" == 64
+"RIGHT_THUMB" == 128
+"LEFT_SHOULDER" == 256
+"RIGHT_SHOULDER" == 512
+"A" == 4096
+"B" == 8192
+"X" == 16384
+"Y" == 32768
+[/code]
+
+[b]Trigger Events[/]
+All trigger related Events have the following additional members:
+[code]Event.trigger[/code] (either [code]XInput.LEFT == 0[/code] or [code]XInput.RIGHT == 1[/code]) - which trigger was moved
+[code]Event.value[/code] (range 0.0 to 1.0) - by how much the trigger is currently pressed
+
+[b]Stick Events[/]
+All thumb stick related Events have the following additional members:
+[code]Event.stick[/code] (either [code]XInput.LEFT == 0[/code] or [code]XInput.RIGHT == 1[/code]) - which stick was moved
+[code]Event.x[/code] (range -1.0 to 1.0) - the position of the stick on the X axis
+[code]Event.y[/code] (range -1.0 to 1.0) - the position of the stick on the Y axis
+[code]Event.value[/code] (range 0.0 to 1.0) - the distance of the stick from it's center position
+[code]Event.dir[/code] (tuple of X and Y) - the direction the stick is currently pointing
+
+[s2]Demo[/]
+Run [code]XInput.py[/code] as main ([code]python XInput.py[/code]) to see a vidual representation of the controller input.

@@ -1,2 +1,6 @@
-
+build/
+dist/
+XInput_Python.egg-info/
 runreadmelang.bat
+*.pyc
+*.bat
