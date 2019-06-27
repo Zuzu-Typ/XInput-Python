@@ -92,4 +92,4 @@ All thumb stick related Events have the following additional members:
 `Event.dir` \(tuple of X and Y\) \- the direction the stick is currently pointing  
   
 ### Demo  
-Run `XInput.py` as main \(`python XInput.py`\) to see a vidual representation of the controller input\.
+Run `XInput.py` as main \(`python XInput.py`\) to see a visual representation of the controller input\.

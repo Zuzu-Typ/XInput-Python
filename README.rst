@@ -124,4 +124,4 @@ Using Events
 
 Demo
 ----
-| Run :code:`XInput.py` as main \(:code:`python XInput.py`\) to see a vidual representation of the controller input\.
+| Run :code:`XInput.py` as main \(:code:`python XInput.py`\) to see a visual representation of the controller input\.

@@ -84,4 +84,4 @@ All thumb stick related Events have the following additional members:
 [code]Event.dir[/code] (tuple of X and Y) - the direction the stick is currently pointing
 
 [s2]Demo[/]
-Run [code]XInput.py[/code] as main ([code]python XInput.py[/code]) to see a vidual representation of the controller input.
+Run [code]XInput.py[/code] as main ([code]python XInput.py[/code]) to see a visual representation of the controller input.
