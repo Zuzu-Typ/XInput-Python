@@ -17,7 +17,7 @@ It can be inmported like this:
 XInput\-Python provides a few functions:  
 `get_connected() -> (bool, bool, bool, bool)` Query which controllers are connected \(note: don't query each frame\)  
   
-`get_state(user_index) -> State` Get the State of the controller `user_index`  
+`get_state(user_index) -> State` Gets the State of the controller `user_index`  
   
 `get_button_values(state) -> dict` Returns a dictionary, showing which buttons are currently being pressed\.  
   
@@ -28,6 +28,15 @@ XInput\-Python provides a few functions:
 `set_vibration(user_index, left_speed, right_speed) -> bool (Success)` Sets the vibration of the left and right motors of `user_index` to values between `0` and `65535` or in range `0.0` to `1.0` respectively\.  
   
 `get_battery_information(user_index) -> (<type>, <level>)` Returns the battery information for `user_index`  
+  
+`set_deadzone(deadzone, value) -> None` Sets the deadzone values for left/right thumb stick and triggers\.  
+  
+The following deadzones exist:  
+`XInput.DEADZONE_LEFT_THUMB` \- \(range 0 to 32767\) Left thumb stick deadzone \(default is 7849\)  
+  
+`XInput.DEADZONE_RIGHT_THUMB` \- \(range 0 to 32767\) Right thumb stick deadzone \(default is 8689\)  
+  
+`XInput.DEADZONE_TRIGGER` \- \(range 0 to 255\) Trigger deadzone \(default is 30\)  
   
 #### Using Events  
 You can also use the Event\-system:  

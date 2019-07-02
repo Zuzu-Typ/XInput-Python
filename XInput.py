@@ -114,11 +114,55 @@ _connected = [False, False, False, False]
 
 _last_checked = 0
 
+DEADZONE_LEFT_THUMB = 0
+DEADZONE_RIGHT_THUMB = 1
+DEADZONE_TRIGGER = 2
+
+DEADZONE_DEFAULT = -1
+
+_deadzones = [{DEADZONE_RIGHT_THUMB : XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE,
+               DEADZONE_LEFT_THUMB : XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE,
+               DEADZONE_TRIGGER : XINPUT_GAMEPAD_TRIGGER_THRESHOLD},
+              {DEADZONE_RIGHT_THUMB : XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE,
+               DEADZONE_LEFT_THUMB : XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE,
+               DEADZONE_TRIGGER : XINPUT_GAMEPAD_TRIGGER_THRESHOLD},
+              {DEADZONE_RIGHT_THUMB : XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE,
+               DEADZONE_LEFT_THUMB : XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE,
+               DEADZONE_TRIGGER : XINPUT_GAMEPAD_TRIGGER_THRESHOLD},
+              {DEADZONE_RIGHT_THUMB : XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE,
+               DEADZONE_LEFT_THUMB : XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE,
+               DEADZONE_TRIGGER : XINPUT_GAMEPAD_TRIGGER_THRESHOLD}]
+
 class XInputNotConnectedError(Exception):
     pass
 
 class XInputBadArgumentError(ValueError):
     pass
+
+def set_deadzone(dzone, value):
+    global XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE, XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE, XINPUT_GAMEPAD_TRIGGER_THRESHOLD
+    
+    assert dzone >= 0 and dzone <= 2, "invalid deadzone"
+    
+    if value == DEADZONE_DEFAULT:
+        value = 7849 if dzone == DEADZONE_LEFT_THUMB else \
+                8689 if dzone == DEADZONE_RIGHT_THUMB else \
+                30
+
+    if dzone == DEADZONE_LEFT_THUMB:
+        assert value >= 0 and value <= 32767
+        if value == DEADZONE_DEFAULT: XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE = 7849
+        else: XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE = value
+
+    elif dzone == DEADZONE_RIGHT_THUMB:
+        assert value >= 0 and value <= 32767
+        if value == DEADZONE_DEFAULT: XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE = 8689
+        else: XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE = value
+
+    else:
+        assert value >= 0 and value <= 255
+        if value == DEADZONE_DEFAULT: XINPUT_GAMEPAD_TRIGGER_THRESHOLD = 30
+        else: XINPUT_GAMEPAD_TRIGGER_THRESHOLD = value
 
 def get_connected():
     state = XINPUT_STATE()
@@ -424,6 +468,8 @@ if __name__ == "__main__":
     root.title("XInput")
     canvas = tk.Canvas(root, width= 600, height = 400, bg="white")
     canvas.pack()
+    
+    set_deadzone(DEADZONE_TRIGGER,10)
 
     class Controller:
         def __init__(self, center):
@@ -613,6 +659,9 @@ if __name__ == "__main__":
                     canvas.itemconfig(controller.Y_button, fill="")
                 elif event.button == "X":
                     canvas.itemconfig(controller.X_button, fill="")
-    
-        root.update()
+
+        try:          
+            root.update()
+        except tk.TclError:
+            break
     

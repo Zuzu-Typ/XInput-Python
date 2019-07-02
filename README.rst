@@ -37,7 +37,7 @@ Using XInput\-Python
 | XInput\-Python provides a few functions\:
 | :code:`get_connected() -> (bool, bool, bool, bool)` Query which controllers are connected \(note\: don\'t query each frame\)
 | 
-| :code:`get_state(user_index) -> State` Get the State of the controller :code:`user_index`
+| :code:`get_state(user_index) -> State` Gets the State of the controller :code:`user_index`
 | 
 | :code:`get_button_values(state) -> dict` Returns a dictionary\, showing which buttons are currently being pressed\.
 | 
@@ -48,6 +48,15 @@ Using XInput\-Python
 | :code:`set_vibration(user_index, left_speed, right_speed) -> bool (Success)` Sets the vibration of the left and right motors of :code:`user_index` to values between :code:`0` and :code:`65535` or in range :code:`0.0` to :code:`1.0` respectively\.
 | 
 | :code:`get_battery_information(user_index) -> (<type>, <level>)` Returns the battery information for :code:`user_index`
+| 
+| :code:`set_deadzone(deadzone, value) -> None` Sets the deadzone values for left\/right thumb stick and triggers\.
+| 
+| The following deadzones exist\:
+| :code:`XInput.DEADZONE_LEFT_THUMB` \- \(range 0 to 32767\) Left thumb stick deadzone \(default is 7849\)
+| 
+| :code:`XInput.DEADZONE_RIGHT_THUMB` \- \(range 0 to 32767\) Right thumb stick deadzone \(default is 8689\)
+| 
+| :code:`XInput.DEADZONE_TRIGGER` \- \(range 0 to 255\) Trigger deadzone \(default is 30\)
 | 
 
 Using Events
