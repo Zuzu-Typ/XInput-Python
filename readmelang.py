@@ -22,7 +22,7 @@ SECTION3 = 2**13
 INLINE_CODE = 2**14
 
 def format_md(text):
-    for char in "\\`*{}[]()#+-.!_":
+    for char in "\\`*{}[]#+-.!_":
         if not char in text: continue
         text = text.replace(char, "\\"+char)
     return text

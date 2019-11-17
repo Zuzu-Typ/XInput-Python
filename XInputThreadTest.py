@@ -218,5 +218,7 @@ if __name__ == "__main__":
 
     root.mainloop()                                 # run UI loop
 
+    # can run other stuff here
+
 else:
     raise ImportError("This is not a module. Import XInput only")

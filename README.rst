@@ -131,6 +131,93 @@ Using Events
 | :code:`Event.dir` \(tuple of X and Y\) \- the direction the stick is currently pointing
 | 
 
+Callback events and threading
+-----------------------------
+| With the :code:`GamepadThread` class it is possible to handle asynchronous events\.
+| To use this feature\, extend the :code:`GamepadEventsHandler` to create one or multiple handlers and add them to the thread\.
+| The library will automatically check the status of the gamepad and use the appropriate callback for the triggering event\.
+| It is also possible to filter the inputs for every single handler\.
+| In case of multiple handlers it is possible to use a list of handlers as argument\, as well as the :code:`add_handler()` method and the :code:`remove_handler()` method to remove them\.
+| Filters can be applied to select events of only certain buttons\, trigger or stick\. Also a \"button\-down\" and \"button\-up\" filter is available\.
+| The available filters are\:
+
+
+::
+
+    
+    BUTTON_DPAD_UP       
+    BUTTON_DPAD_DOWN     
+    BUTTON_DPAD_LEFT     
+    BUTTON_DPAD_RIGHT    
+    BUTTON_START         
+    BUTTON_BACK          
+    BUTTON_LEFT_THUMB    
+    BUTTON_RIGHT_THUMB   
+    BUTTON_LEFT_SHOULDER 
+    BUTTON_RIGHT_SHOULDER
+    BUTTON_A             
+    BUTTON_B             
+    BUTTON_X             
+    BUTTON_Y             
+    
+    STICK_LEFT           
+    STICK_RIGHT          
+    TRIGGER_LEFT         
+    TRIGGER_RIGHT        
+    
+    FILTER_DOWN_ONLY     
+    FILTER_UP_ONLY
+    
+
+      
+| 
+| The filters can be combined by adding them together\:
+| 
+
+
+::
+
+    filter1 = STICK_LEFT + STICK_RIGHT + BUTTON_DPAD_DOWN + BUTTON_DPAD_UP
+    filter2 = BUTTON_Y + BUTTON_X + FILTER_DOWN_ONLY
+
+ 
+| 
+| While adding a filter is also possible to set to wich controller\/s should be applied\:
+| 
+| :code:`handler.add_filter(filter, controller = [1,2])`
+| 
+| **Example**
+
+
+::
+
+    class MyHandler(GamepadEventsHandler):
+        def __init__(self):
+            ...
+    
+        def on_button_event(self, event):
+            # put here the code to parse every event related only to the buttons
+    
+        def on_trigger_event(self, event):
+            # event reserved for the two triggers
+    
+        def on_stick_event(self, event):
+            # event reserved for the two sticks
+    
+        def on_connection_event(self, event):
+            # event related to the gamepad status
+    
+    filter = STICK_LEFT + STICK_RIGHT
+    my_handler = MyHandler()
+    my_handler.add_filter = filter
+    my_gamepad_thread = GamepadThread(my_handler)
+
+ 
+| 
+| The thread will start automatically upon creation\. It is possible to stop and start it again if necessary with the two methods :code:`start_thread()` and :code:`stop_thread()`
+| 
+
 Demo
 ----
 | Run :code:`XInput.py` as main \(:code:`python XInput.py`\) to see a visual representation of the controller input\.
+| Run :code:`python XInputThreadTest.py` to test the visual representation using the asynchronous callbacks\.
