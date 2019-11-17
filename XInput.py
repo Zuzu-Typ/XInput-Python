@@ -6,6 +6,8 @@ from math import sqrt
 
 import time
 
+from threading import Thread
+
 XINPUT_DLL_NAMES = (
     "XInput1_4.dll",
     "XInput9_1_0.dll",
@@ -475,6 +477,43 @@ def get_events():
             _last_norm_values[3] = out
 
     _last_states = these_states
+
+class GamepadEventsHandler:
+    def on_button_event(self,event):
+        raise NotImplemented
+
+    def on_stick_event(self,event):
+        raise NotImplemented
+
+    def on_trigger_event(self,event):
+        raise NotImplemented
+
+class GamepadThread:
+    def __init__(self, events_handler, auto_start=True):
+        if (events_handler is None or not issubclass(type(events_handler), GamepadEventsHandler)):
+            raise TypeError("The event handler must be a subclass of XInput.GamepadEventsHandler")
+        self.handler = events_handler
+        if auto_start:
+            self.start_thread()
+
+    def __tfun(self):           # thread function
+        while(self.isRunning):  # polling
+            events = get_events()
+            for e in events:
+                print(e)
+
+    def start_thread(self):     # starts the thread
+        self.isRunning = True
+        if(not hasattr(self,"__t")):
+            self.__t = Thread(target=self.__tfun, args=())
+            self.__t.daemon = True
+        self.__t.start()
+
+    def stop_thread(self):      # stops the thread
+        self.isRunning = False
+
+
+
 
 if __name__ == "__main__":
     try:
