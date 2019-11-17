@@ -252,10 +252,20 @@ def get_thumb_values(state):
     magL = sqrt(LX*LX + LY*LY)
     magR = sqrt(RX*RX + RY*RY)
 
-    normLX = LX / magL
-    normLY = LY / magL
-    normRX = RX / magR
-    normRY = RY / magR
+    if magL != 0:
+        normLX = LX / magL
+        normLY = LY / magL
+    else: # if magL == 0 the stick is centered, there is no direction
+        normLX = 0
+        normLY = 0
+    
+    if magR != 0:
+        normRX = RX / magR
+        normRY = RY / magR
+    else: # if magR == 0 the stick is centered, there is no direction
+        normRX = 0
+        normRY = 0
+
 
     normMagL = 0
     normMagR = 0
@@ -396,8 +406,12 @@ def get_events():
 
             magL = sqrt(LX*LX + LY*LY)
 
-            normLX = LX / magL
-            normLY = LY / magL
+            if magL != 0:
+                normLX = LX / magL
+                normLY = LY / magL
+            else: # if magL == 0 the stick is centered, there is no direction
+                normLX = 0
+                normLY = 0
 
             normMagL = 0
 
@@ -429,8 +443,12 @@ def get_events():
 
             magR = sqrt(RX*RX + RY*RY)
 
-            normRX = RX / magR
-            normRY = RY / magR
+            if magR != 0:
+                normRX = RX / magR
+                normRY = RY / magR
+            else:   # if magR == 0 the stick is centered, there is no direction
+                normRX = 0
+                normRY = 0
 
             normMagR = 0
 
