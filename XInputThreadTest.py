@@ -190,6 +190,10 @@ if __name__ == "__main__":
     handler = MyHandler(controllers, canvas)        # initialize handler object
     thread = GamepadThread(handler)                 # initialize controller thread
 
+    # filters examples
+    thread.add_filter(BUTTON_A + BUTTON_B + STICK_LEFT + FILTER_DOWN_ONLY + TRIGGER_RIGHT + BUTTON_START)
+    # thread.add_filter(STICK_RIGHT,[2])
+
     root.mainloop()                                 # run UI loop
 
 else:

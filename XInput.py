@@ -51,6 +51,30 @@ BATTERY_LEVEL_LOW               = 0x01
 BATTERY_LEVEL_MEDIUM            = 0x02
 BATTERY_LEVEL_FULL              = 0x03
 
+BUTTON_DPAD_UP                  = 0x000001
+BUTTON_DPAD_DOWN                = 0x000002
+BUTTON_DPAD_LEFT                = 0x000004
+BUTTON_DPAD_RIGHT               = 0x000008
+BUTTON_START                    = 0x000010
+BUTTON_BACK                     = 0x000020
+BUTTON_LEFT_THUMB               = 0x000040
+BUTTON_RIGHT_THUMB              = 0x000080
+BUTTON_LEFT_SHOULDER            = 0x000100
+BUTTON_RIGHT_SHOULDER           = 0x000200
+BUTTON_A                        = 0x001000
+BUTTON_B                        = 0x002000
+BUTTON_X                        = 0x004000
+BUTTON_Y                        = 0x008000
+
+STICK_LEFT                      = 0x010000
+STICK_RIGHT                     = 0x020000
+TRIGGER_LEFT                    = 0x040000
+TRIGGER_RIGHT                   = 0x080000
+
+FILTER_DOWN_ONLY                = 0x100000
+FILTER_UP_ONLY                  = 0x200000
+FILTER_NONE                     = 0xffffff-FILTER_DOWN_ONLY-FILTER_UP_ONLY
+
 _battery_type_dict = {BATTERY_TYPE_DISCONNECTED : "DISCONNECTED",
                       BATTERY_TYPE_WIRED : "WIRED",
                       BATTERY_TYPE_ALKALINE : "ALKALINE",
@@ -497,6 +521,7 @@ class GamepadThread:
         if (events_handler is None or not issubclass(type(events_handler), GamepadEventsHandler)):
             raise TypeError("The event handler must be a subclass of XInput.GamepadEventsHandler")
         self.handler = events_handler
+        self.filters = [FILTER_NONE]*4     # by default none of the input is filtered (masking also up and down filter for buttons)
         if auto_start:
             self.start_thread()
 
@@ -507,11 +532,15 @@ class GamepadThread:
                 if e.type == EVENT_CONNECTED or e.type == EVENT_DISCONNECTED:
                     self.handler.on_connection_event(e)
                 elif e.type == EVENT_BUTTON_PRESSED or e.type == EVENT_BUTTON_RELEASED:
-                    self.handler.on_button_event(e)
+                    if not((self.filters[e.user_index] & (FILTER_DOWN_ONLY+FILTER_UP_ONLY)) and not(self.filters[e.user_index] & (FILTER_DOWN_ONLY << (e.type - EVENT_BUTTON_PRESSED)))):
+                        if e.button_id & self.filters[e.user_index]:
+                            self.handler.on_button_event(e)
                 elif e.type == EVENT_TRIGGER_MOVED:
-                    self.handler.on_trigger_event(e)
+                    if (TRIGGER_LEFT << e.trigger) & self.filters[e.user_index]:
+                        self.handler.on_trigger_event(e)
                 elif e.type == EVENT_STICK_MOVED:
-                    self.handler.on_stick_event(e)
+                    if (STICK_LEFT << e.stick) & self.filters[e.user_index]:
+                        self.handler.on_stick_event(e)
                 else: 
                     raise ValueError("Event type not recognized")
                 
@@ -526,6 +555,32 @@ class GamepadThread:
     def stop_thread(self):      # stops the thread
         self.isRunning = False
 
+    # the filter is the sum of the buttons that must be shown
+    # the list of possible inputs to be filtered is:
+    # * button values (1,2,4,8, ...)
+    # * 0x010000 or 65536 for left stick
+    # * 0x020000 or 131072 for right stick
+    # * 0x040000 or 262144 for left trigger
+    # * 0x080000 or 524288 for right trigger
+    #
+    # additional values are available to filter only one kind of events wich is only button down and only button down:
+    # FILTER_DOWN_ONLY
+    # FILTER_UP_ONLY 
+    #
+    # example1: add_filter(BUTTON_X + BUTTON_Y + BUTTON_DPAD_UP) will add a filter for all players that allow events only for the X, Y and DPAD_UP buttons
+    # example2: add_filter(BUTTON_A + FILTER_DOWN_ONLY, [1,3]) will add the filter only for player 1 and 3 and only when the button is pressed down
+    # NOTE: Controller events are not maskable
+    def add_filter(self, filter, controller = [0,1,2,3]):
+        for i in controller:
+            if(self.filters[i] == FILTER_NONE):
+                self.filters[i] = filter
+            else:
+                self.filters[i] |=filter
+    
+    # remove any filter
+    # the "controller" attribute remove the filter only for the selected controller. By default will remove every filter
+    def clear_filters(self, controller = [0,1,2,3]):
+        self.filters[controller] = []
 
 
 
