@@ -115,7 +115,8 @@ if __name__ == "__main__":
 
     # Create the handler and set the events functions
     class MyHandler(GamepadEventsHandler):
-        def __init__(self, controllers, canvas):
+        def __init__(self, controllers, canvas, filter=FILTER_NONE):
+            super().__init__(filter)
             self.controllers = controllers
             self.canvas = canvas
 
@@ -185,14 +186,35 @@ if __name__ == "__main__":
                 self.canvas.itemconfig(controller.on_indicator, fill="")
             else:
                 print("Unrecognized controller event type")
+
+    class MyOtherHandler(GamepadEventsHandler):
+        def __init__(self):
+            super().__init__(BUTTON_A+FILTER_DOWN_ONLY)
+
+        def on_button_event(self, event):
+            print("Pressed button A")
+
+        def on_stick_event(self, event):
+            pass
+
+        def on_trigger_event(self, event):
+            print("Trigger LEFT")
+
+        def on_connection_event(self, event):
+            pass
     
     
     handler = MyHandler(controllers, canvas)        # initialize handler object
     thread = GamepadThread(handler)                 # initialize controller thread
 
+    handler2 = MyOtherHandler()
+    thread.add_event_handler(handler2)              # add another handler
+    handler2.add_filter(TRIGGER_LEFT)
+
     # filters examples
-    thread.add_filter(BUTTON_A + BUTTON_B + STICK_LEFT + FILTER_DOWN_ONLY + TRIGGER_RIGHT + BUTTON_START)
-    # thread.add_filter(STICK_RIGHT,[2])
+    # handler.add_filter(BUTTON_A + BUTTON_B + STICK_LEFT + FILTER_DOWN_ONLY + TRIGGER_RIGHT + BUTTON_START)
+    # handler.add_filter(STICK_RIGHT,[2])
+    # handler = MyHandler(controllers, canvas, STICK_LEFT)
 
     root.mainloop()                                 # run UI loop
 

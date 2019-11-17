@@ -504,6 +504,9 @@ def get_events():
 
 # Event handler class to be extended to use dynamic events
 class GamepadEventsHandler:
+    def __init__(self, filter = FILTER_NONE):
+        self.filters = [filter]*4
+    
     def on_button_event(self, event):
         raise NotImplementedError("Method not implemented. Must be implemented in the child class")
 
@@ -515,45 +518,6 @@ class GamepadEventsHandler:
 
     def on_connection_event(self, event):
         raise NotImplementedError("Method not implemented. Must be implemented in the child class")
-
-class GamepadThread:
-    def __init__(self, events_handler, auto_start=True):
-        if (events_handler is None or not issubclass(type(events_handler), GamepadEventsHandler)):
-            raise TypeError("The event handler must be a subclass of XInput.GamepadEventsHandler")
-        self.handler = events_handler
-        self.filters = [FILTER_NONE]*4     # by default none of the input is filtered (masking also up and down filter for buttons)
-        if auto_start:
-            self.start_thread()
-
-    def __tfun(self):           # thread function
-        while(self.isRunning):  # polling
-            events = get_events()
-            for e in events:    # filtering events
-                if e.type == EVENT_CONNECTED or e.type == EVENT_DISCONNECTED:
-                    self.handler.on_connection_event(e)
-                elif e.type == EVENT_BUTTON_PRESSED or e.type == EVENT_BUTTON_RELEASED:
-                    if not((self.filters[e.user_index] & (FILTER_DOWN_ONLY+FILTER_UP_ONLY)) and not(self.filters[e.user_index] & (FILTER_DOWN_ONLY << (e.type - EVENT_BUTTON_PRESSED)))):
-                        if e.button_id & self.filters[e.user_index]:
-                            self.handler.on_button_event(e)
-                elif e.type == EVENT_TRIGGER_MOVED:
-                    if (TRIGGER_LEFT << e.trigger) & self.filters[e.user_index]:
-                        self.handler.on_trigger_event(e)
-                elif e.type == EVENT_STICK_MOVED:
-                    if (STICK_LEFT << e.stick) & self.filters[e.user_index]:
-                        self.handler.on_stick_event(e)
-                else: 
-                    raise ValueError("Event type not recognized")
-                
-
-    def start_thread(self):     # starts the thread
-        self.isRunning = True
-        if(not hasattr(self,"__t")):
-            self.__t = Thread(target=self.__tfun, args=())
-            self.__t.daemon = True
-        self.__t.start()
-
-    def stop_thread(self):      # stops the thread
-        self.isRunning = False
 
     # the filter is the sum of the buttons that must be shown
     # the list of possible inputs to be filtered is:
@@ -581,6 +545,65 @@ class GamepadThread:
     # the "controller" attribute remove the filter only for the selected controller. By default will remove every filter
     def clear_filters(self, controller = [0,1,2,3]):
         self.filters[controller] = []
+
+
+class GamepadThread:
+    def __init__(self, events_handlers, auto_start=True):
+        if not isinstance(events_handlers, list):
+            events_handlers = [events_handlers]
+        for ev in events_handlers:
+            if (ev is None or not issubclass(type(ev), GamepadEventsHandler)):
+                raise TypeError("The event handler must be a subclass of XInput.GamepadEventsHandler")
+        self.handlers = events_handlers
+        self.filters = [FILTER_NONE]*4     # by default none of the input is filtered (masking also up and down filter for buttons)
+        if auto_start:
+            self.start_thread()
+
+    def __tfun(self):           # thread function
+        while(self.isRunning):  # polling
+            events = get_events()
+            for e in events:    # filtering events
+                if e.type == EVENT_CONNECTED or e.type == EVENT_DISCONNECTED:
+                    for h in self.handlers:
+                        h.on_connection_event(e)
+                elif e.type == EVENT_BUTTON_PRESSED or e.type == EVENT_BUTTON_RELEASED:
+                    for h in self.handlers:
+                        if not((h.filters[e.user_index] & (FILTER_DOWN_ONLY+FILTER_UP_ONLY)) and not(h.filters[e.user_index] & (FILTER_DOWN_ONLY << (e.type - EVENT_BUTTON_PRESSED)))):
+                            if e.button_id & h.filters[e.user_index]:
+                                h.on_button_event(e)
+                elif e.type == EVENT_TRIGGER_MOVED:
+                    for h in self.handlers:
+                        if (TRIGGER_LEFT << e.trigger) & h.filters[e.user_index]:
+                            h.on_trigger_event(e)
+                elif e.type == EVENT_STICK_MOVED:
+                    for h in self.handlers:
+                        if (STICK_LEFT << e.stick) & h.filters[e.user_index]:
+                            h.on_stick_event(e)
+                else: 
+                    raise ValueError("Event type not recognized")
+                
+
+    def start_thread(self):     # starts the thread
+        self.isRunning = True
+        if(not hasattr(self,"__t")):
+            self.__t = Thread(target=self.__tfun, args=())
+            self.__t.daemon = True
+        self.__t.start()
+
+    def stop_thread(self):      # stops the thread
+        self.isRunning = False
+    
+    def add_event_handler(self, event_handler):
+        if (event_handler is None or not issubclass(type(event_handler), GamepadEventsHandler)):
+            raise TypeError("The event handler must be a subclass of XInput.GamepadEventsHandler")
+        self.handlers.append(event_handler)
+
+    def remove_event_handler(self, event_handler):
+        try:
+            self.handlers.remove(event_handler)
+            return True
+        except ValueError:
+            return False
 
 
 
