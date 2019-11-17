@@ -478,15 +478,19 @@ def get_events():
 
     _last_states = these_states
 
+# Event handler class to be extended to use dynamic events
 class GamepadEventsHandler:
-    def on_button_event(self,event):
-        raise NotImplemented
+    def on_button_event(self, event):
+        raise NotImplementedError("Method not implemented. Must be implemented in the child class")
 
-    def on_stick_event(self,event):
-        raise NotImplemented
+    def on_stick_event(self, event):
+        raise NotImplementedError("Method not implemented. Must be implemented in the child class")
 
-    def on_trigger_event(self,event):
-        raise NotImplemented
+    def on_trigger_event(self, event):
+        raise NotImplementedError("Method not implemented. Must be implemented in the child class")
+
+    def on_connection_event(self, event):
+        raise NotImplementedError("Method not implemented. Must be implemented in the child class")
 
 class GamepadThread:
     def __init__(self, events_handler, auto_start=True):
@@ -499,8 +503,18 @@ class GamepadThread:
     def __tfun(self):           # thread function
         while(self.isRunning):  # polling
             events = get_events()
-            for e in events:
-                print(e)
+            for e in events:    # filtering events
+                if e.type == EVENT_CONNECTED or e.type == EVENT_DISCONNECTED:
+                    self.handler.on_connection_event(e)
+                elif e.type == EVENT_BUTTON_PRESSED or e.type == EVENT_BUTTON_RELEASED:
+                    self.handler.on_button_event(e)
+                elif e.type == EVENT_TRIGGER_MOVED:
+                    self.handler.on_trigger_event(e)
+                elif e.type == EVENT_STICK_MOVED:
+                    self.handler.on_stick_event(e)
+                else: 
+                    raise ValueError("Event type not recognized")
+                
 
     def start_thread(self):     # starts the thread
         self.isRunning = True

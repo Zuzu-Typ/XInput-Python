@@ -13,6 +13,9 @@ if __name__ == "__main__":
 
         def on_trigger_event(self, event):
             print(event)
+
+        def on_connection_event(self, event):
+            print(event)
     
     handler = MyHandler()
     thread = GamepadThread(handler)
