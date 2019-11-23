@@ -28,7 +28,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='0.2.0',
+    version='0.3.0',
 
     description='A simple to use interface to the XInput API for Python',
     
@@ -74,7 +74,7 @@ setup(
     ],
 
     # What does your project relate to?
-    keywords='XInput xinput-controller xinput-wrapper directx controller controller-api wrapper windows',
+    keywords='XInput xinput-controller xinput-wrapper directx controller controller-api wrapper windows thread threaded async',
 
     # You can just specify the packages manually here if your project is
     # simple. Or you can use find_packages().
