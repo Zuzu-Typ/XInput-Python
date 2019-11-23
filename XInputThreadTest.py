@@ -114,14 +114,9 @@ if __name__ == "__main__":
 
 
     # Create the handler and set the events functions
-    class MyHandler(GamepadEventsHandler):
-        def __init__(self, controllers, canvas, filter=FILTER_NONE):
-            super().__init__(filter)
-            self.controllers = controllers
-            self.canvas = canvas
-
-        def on_button_event(self,event):
-            controller = self.controllers[event.user_index]
+    class MyHandler(EventHandler):
+        def process_button_event(self,event):
+            controller = controllers[event.user_index]
             fill_color = ""
             if event.type == EVENT_BUTTON_PRESSED:
                 fill_color = "red"
@@ -159,57 +154,57 @@ if __name__ == "__main__":
             elif event.button == "X":
                 canvas.itemconfig(controller.X_button, fill=fill_color)
         
-        def on_stick_event(self, event):
-            controller = self.controllers[event.user_index]
+        def process_stick_event(self, event):
+            controller = controllers[event.user_index]
             if event.stick == LEFT:
                 l_thumb_stick_pos = (int(round(controller.l_thumb_pos[0] + 25 * event.x,0)), int(round(controller.l_thumb_pos[1] - 25 * event.y,0)))
-                self.canvas.coords(controller.l_thumb_stick, (l_thumb_stick_pos[0] - 10, l_thumb_stick_pos[1] - 10, l_thumb_stick_pos[0] + 10, l_thumb_stick_pos[1] + 10))
+                canvas.coords(controller.l_thumb_stick, (l_thumb_stick_pos[0] - 10, l_thumb_stick_pos[1] - 10, l_thumb_stick_pos[0] + 10, l_thumb_stick_pos[1] + 10))
                 
             elif event.stick == RIGHT:
                 r_thumb_stick_pos = (int(round(controller.r_thumb_pos[0] + 25 * event.x,0)), int(round(controller.r_thumb_pos[1] - 25 * event.y,0)))
-                self.canvas.coords(controller.r_thumb_stick, (r_thumb_stick_pos[0] - 10, r_thumb_stick_pos[1] - 10, r_thumb_stick_pos[0] + 10, r_thumb_stick_pos[1] + 10))
+                canvas.coords(controller.r_thumb_stick, (r_thumb_stick_pos[0] - 10, r_thumb_stick_pos[1] - 10, r_thumb_stick_pos[0] + 10, r_thumb_stick_pos[1] + 10))
 
-        def on_trigger_event(self, event):
-            controller = self.controllers[event.user_index]
+        def process_trigger_event(self, event):
+            controller = controllers[event.user_index]
             if event.trigger == LEFT:
                 l_trigger_index_pos = (controller.l_trigger_pos[0], controller.l_trigger_pos[1] - 20 + int(round(40 * event.value, 0)))
-                self.canvas.coords(controller.l_trigger_index, (l_trigger_index_pos[0] - 10, l_trigger_index_pos[1] - 5, l_trigger_index_pos[0] + 10, l_trigger_index_pos[1] + 5))
+                canvas.coords(controller.l_trigger_index, (l_trigger_index_pos[0] - 10, l_trigger_index_pos[1] - 5, l_trigger_index_pos[0] + 10, l_trigger_index_pos[1] + 5))
             elif event.trigger == RIGHT:
                 r_trigger_index_pos = (controller.r_trigger_pos[0], controller.r_trigger_pos[1] - 20 + int(round(40 * event.value, 0)))
-                self.canvas.coords(controller.r_trigger_index, (r_trigger_index_pos[0] - 10, r_trigger_index_pos[1] - 5, r_trigger_index_pos[0] + 10, r_trigger_index_pos[1] + 5))
+                canvas.coords(controller.r_trigger_index, (r_trigger_index_pos[0] - 10, r_trigger_index_pos[1] - 5, r_trigger_index_pos[0] + 10, r_trigger_index_pos[1] + 5))
 
-        def on_connection_event(self, event):
-            controller = self.controllers[event.user_index]
+        def process_connection_event(self, event):
+            controller = controllers[event.user_index]
             if event.type == EVENT_CONNECTED:
-                self.canvas.itemconfig(controller.on_indicator, fill="light green")
+                canvas.itemconfig(controller.on_indicator, fill="light green")
             elif event.type == EVENT_DISCONNECTED:
-                self.canvas.itemconfig(controller.on_indicator, fill="")
+                canvas.itemconfig(controller.on_indicator, fill="")
             else:
                 print("Unrecognized controller event type")
 
-    class MyOtherHandler(GamepadEventsHandler):
-        def __init__(self):
-            super().__init__(BUTTON_A+FILTER_DOWN_ONLY)
+    class MyOtherHandler(EventHandler):
+        def __init__(self, *controllers):
+            super().__init__(*controllers, filter=BUTTON_A+FILTER_PRESSED_ONLY)
 
-        def on_button_event(self, event):
+        def process_button_event(self, event):
             print("Pressed button A")
 
-        def on_stick_event(self, event):
+        def process_stick_event(self, event):
             pass
 
-        def on_trigger_event(self, event):
+        def process_trigger_event(self, event):
             print("Trigger LEFT")
 
-        def on_connection_event(self, event):
+        def process_connection_event(self, event):
             pass
     
     
-    handler = MyHandler(controllers, canvas)        # initialize handler object
+    handler = MyHandler(0, 1, 2, 3)        # initialize handler object
     thread = GamepadThread(handler)                 # initialize controller thread
 
-    handler2 = MyOtherHandler()
+    handler2 = MyOtherHandler(1)
     thread.add_event_handler(handler2)              # add another handler
-    handler2.add_filter(TRIGGER_LEFT)
+    handler2.set_filter(handler2.filter+TRIGGER_LEFT)
 
     # filters examples
     # handler.add_filter(BUTTON_A + BUTTON_B + STICK_LEFT + FILTER_DOWN_ONLY + TRIGGER_RIGHT + BUTTON_START)
@@ -217,6 +212,8 @@ if __name__ == "__main__":
     # handler = MyHandler(controllers, canvas, STICK_LEFT)
 
     root.mainloop()                                 # run UI loop
+
+    thread.stop()
 
     # can run other stuff here
 

@@ -6,8 +6,10 @@ from math import sqrt
 
 import time
 
-from threading import Thread
+from threading import Thread, Lock
 
+
+# loading the DLL #
 XINPUT_DLL_NAMES = (
     "XInput1_4.dll",
     "XInput9_1_0.dll",
@@ -27,18 +29,21 @@ for name in XINPUT_DLL_NAMES:
 if not libXInput:
     raise IOError("XInput library was not found.")
 
-WORD = ctypes.c_ushort
-BYTE = ctypes.c_ubyte
-SHORT = ctypes.c_short
-DWORD = ctypes.c_ulong
+#/loading the DLL #
 
-ERROR_SUCCESS = 0
-ERROR_BAD_ARGUMENTS = 160
-ERROR_DEVICE_NOT_CONNECTED = 1167
+# defining static global variables #
+WORD    = ctypes.c_ushort
+BYTE    = ctypes.c_ubyte
+SHORT   = ctypes.c_short
+DWORD   = ctypes.c_ulong
 
-XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE = 7849
+ERROR_SUCCESS               = 0
+ERROR_BAD_ARGUMENTS         = 160
+ERROR_DEVICE_NOT_CONNECTED  = 1167
+
+XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE  = 7849
 XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE = 8689
-XINPUT_GAMEPAD_TRIGGER_THRESHOLD = 30
+XINPUT_GAMEPAD_TRIGGER_THRESHOLD    = 30
 
 BATTERY_DEVTYPE_GAMEPAD         = 0x00
 BATTERY_TYPE_DISCONNECTED       = 0x00
@@ -71,21 +76,28 @@ STICK_RIGHT                     = 0x020000
 TRIGGER_LEFT                    = 0x040000
 TRIGGER_RIGHT                   = 0x080000
 
-FILTER_DOWN_ONLY                = 0x100000
-FILTER_UP_ONLY                  = 0x200000
-FILTER_NONE                     = 0xffffff-FILTER_DOWN_ONLY-FILTER_UP_ONLY
+FILTER_PRESSED_ONLY                = 0x100000
+FILTER_RELEASED_ONLY                  = 0x200000
+FILTER_NONE                     = 0xffffff-FILTER_PRESSED_ONLY-FILTER_RELEASED_ONLY
 
-_battery_type_dict = {BATTERY_TYPE_DISCONNECTED : "DISCONNECTED",
-                      BATTERY_TYPE_WIRED : "WIRED",
-                      BATTERY_TYPE_ALKALINE : "ALKALINE",
-                      BATTERY_TYPE_NIMH : "NIMH",
-                      BATTERY_TYPE_UNKNOWN : "UNKNOWN"}
+DEADZONE_LEFT_THUMB             = 0
+DEADZONE_RIGHT_THUMB            = 1
+DEADZONE_TRIGGER                = 2
 
-_battery_level_dict = {BATTERY_LEVEL_EMPTY : "EMPTY",
-                       BATTERY_LEVEL_LOW : "LOW",
-                       BATTERY_LEVEL_MEDIUM : "MEDIUM",
-                       BATTERY_LEVEL_FULL : "FULL"}
+DEADZONE_DEFAULT                = -1
 
+EVENT_CONNECTED         = 1
+EVENT_DISCONNECTED      = 2
+EVENT_BUTTON_PRESSED    = 3
+EVENT_BUTTON_RELEASED   = 4
+EVENT_TRIGGER_MOVED     = 5
+EVENT_STICK_MOVED       = 6
+
+LEFT    = 0
+RIGHT   = 1
+#/defining static global variables #
+
+# defining XInput compatible structures #
 class XINPUT_GAMEPAD(Structure):
     _fields_ = [("wButtons", WORD),
                 ("bLeftTrigger", BYTE),
@@ -130,7 +142,19 @@ libXInput.XInputGetBatteryInformation.restype = DWORD
 
 def XInputGetBatteryInformation(dwUserIndex, devType, batteryInformation):
     return libXInput.XInputGetBatteryInformation(dwUserIndex, devType, ctypes.byref(batteryInformation))
+#/defining XInput compatible structures #
 
+# defining file-local variables #
+_battery_type_dict = {BATTERY_TYPE_DISCONNECTED : "DISCONNECTED",
+                      BATTERY_TYPE_WIRED : "WIRED",
+                      BATTERY_TYPE_ALKALINE : "ALKALINE",
+                      BATTERY_TYPE_NIMH : "NIMH",
+                      BATTERY_TYPE_UNKNOWN : "UNKNOWN"}
+
+_battery_level_dict = {BATTERY_LEVEL_EMPTY : "EMPTY",
+                       BATTERY_LEVEL_LOW : "LOW",
+                       BATTERY_LEVEL_MEDIUM : "MEDIUM",
+                       BATTERY_LEVEL_FULL : "FULL"}
 
 _last_states = (State(), State(), State(), State())
 
@@ -139,12 +163,6 @@ _last_norm_values = [None, None, None, None]
 _connected = [False, False, False, False]
 
 _last_checked = 0
-
-DEADZONE_LEFT_THUMB = 0
-DEADZONE_RIGHT_THUMB = 1
-DEADZONE_TRIGGER = 2
-
-DEADZONE_DEFAULT = -1
 
 _deadzones = [{DEADZONE_RIGHT_THUMB : XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE,
                DEADZONE_LEFT_THUMB : XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE,
@@ -159,6 +177,24 @@ _deadzones = [{DEADZONE_RIGHT_THUMB : XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE,
                DEADZONE_LEFT_THUMB : XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE,
                DEADZONE_TRIGGER : XINPUT_GAMEPAD_TRIGGER_THRESHOLD}]
 
+_button_dict = {0x0001 : "DPAD_UP",
+                0x0002 : "DPAD_DOWN",
+                0x0004 : "DPAD_LEFT",
+                0x0008 : "DPAD_RIGHT",
+                0x0010 : "START",
+                0x0020 : "BACK",
+                0x0040 : "LEFT_THUMB",
+                0x0080 : "RIGHT_THUMB",
+                0x0100 : "LEFT_SHOULDER",
+                0x0200 : "RIGHT_SHOULDER",
+                0x1000 : "A",
+                0x2000 : "B",
+                0x4000 : "X",
+                0x8000 : "Y",
+        }
+#/defining file-local variables #
+
+# defining custom classes and methods #
 class XInputNotConnectedError(Exception):
     pass
 
@@ -166,6 +202,13 @@ class XInputBadArgumentError(ValueError):
     pass
 
 def set_deadzone(dzone, value):
+    """Sets the deadzone <dzone> to <value>.
+Any raw value retruned by the respective stick or trigger
+will be clamped to 0 if it's lower than <value>.
+The supported deadzones are:
+DEADZONE_RIGHT_THUMB (default value is 8689, max is 32767)
+DEADZONE_LEFT_THUMB  (default value is 7849, max is 32767)
+DEADZONE_TRIGGER     (default value is 30,   max is 255  )"""
     global XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE, XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE, XINPUT_GAMEPAD_TRIGGER_THRESHOLD
     
     assert dzone >= 0 and dzone <= 2, "invalid deadzone"
@@ -191,6 +234,10 @@ def set_deadzone(dzone, value):
         else: XINPUT_GAMEPAD_TRIGGER_THRESHOLD = value
 
 def get_connected():
+    """get_connected() -> (bool, bool, bool, bool)
+Returns wether or not the controller at each index is
+connected.
+You shouldn't check this too frequently."""
     state = XINPUT_STATE()
     out = [False] * 4
     for i in range(4):
@@ -199,6 +246,8 @@ def get_connected():
     return tuple(out)
 
 def get_state(user_index):
+    """get_state(int) -> XINPUT_STATE
+Returns the raw state of the controller."""
     state = XINPUT_STATE()
     res = XInputGetState(user_index, state)
     if res == ERROR_DEVICE_NOT_CONNECTED:
@@ -212,11 +261,17 @@ def get_state(user_index):
     return state
 
 def get_battery_information(user_index):
+    """get_battery_information(int) -> (str, str)
+Returns the battery information for controller <user_index>.
+The return value is formatted as (<battery_type>, <battery_level>)"""
     battery_information = XINPUT_BATTERY_INFORMATION()
     XInputGetBatteryInformation(user_index, BATTERY_DEVTYPE_GAMEPAD, battery_information)
     return (_battery_type_dict[battery_information.BatteryType], _battery_level_dict[battery_information.BatteryLevel])
 
 def set_vibration(user_index, left_speed, right_speed):
+    """Sets the vibration motor speed for controller <user_index>.
+The speed ranges from 0.0 to 1.0 (float values) or
+0 to 65535 (int values)."""
     if type(left_speed) == float and left_speed <= 1.0:
         left_speed = (round(65535 * left_speed, 0))
 
@@ -231,6 +286,10 @@ def set_vibration(user_index, left_speed, right_speed):
     return XInputSetState(user_index, vibration) == 0
 
 def get_button_values(state):
+    """get_button_values(XINPUT_STATE) -> dict
+Returns a dict with string keys and boolean values,
+representing the button and it's value respectively.
+You can get the required state using get_state()"""
     wButtons = state.Gamepad.wButtons
     return {"DPAD_UP" : bool(wButtons & 0x0001),
             "DPAD_DOWN" : bool(wButtons & 0x0002),
@@ -249,6 +308,9 @@ def get_button_values(state):
         }
 
 def get_trigger_values(state):
+    """get_trigger_values(XINPUT_STATE) -> (float, float)
+Returns the normalized left and right trigger values.
+You can get the required state using get_state()"""
     LT = state.Gamepad.bLeftTrigger
     RT = state.Gamepad.bRightTrigger
 
@@ -270,6 +332,10 @@ def get_trigger_values(state):
     return (normLT, normRT)
 
 def get_thumb_values(state):
+    """get_thumb_values(XINPUT_STATE) -> ((float, float), (float, float))
+Returns the normalized left and right thumb stick values,
+represented as X and Y values.
+You can get the required state using get_state()"""
     LX = state.Gamepad.sThumbLX
     LY = state.Gamepad.sThumbLY
     RX = state.Gamepad.sThumbRX
@@ -317,31 +383,9 @@ def get_thumb_values(state):
     return ((normLX * normMagL, normLY * normMagL), (normRX * normMagR, normRY * normMagR))
 
 
-_button_dict = {0x0001 : "DPAD_UP",
-            0x0002 : "DPAD_DOWN",
-            0x0004 : "DPAD_LEFT",
-            0x0008 : "DPAD_RIGHT",
-            0x0010 : "START",
-            0x0020 : "BACK",
-            0x0040 : "LEFT_THUMB",
-            0x0080 : "RIGHT_THUMB",
-            0x0100 : "LEFT_SHOULDER",
-            0x0200 : "RIGHT_SHOULDER",
-            0x1000 : "A",
-            0x2000 : "B",
-            0x4000 : "X",
-            0x8000 : "Y",
-        }
 
-EVENT_CONNECTED = 1
-EVENT_DISCONNECTED = 2
-EVENT_BUTTON_PRESSED = 3
-EVENT_BUTTON_RELEASED = 4
-EVENT_TRIGGER_MOVED = 5
-EVENT_STICK_MOVED = 6
 
-LEFT = 0
-RIGHT = 1
+
 
 class Event:
     def __init__(self, user_index, type_):
@@ -352,6 +396,11 @@ class Event:
         return str(self.__dict__)
         
 def get_events():
+    """get_events() -> generator
+Returns a generator that yields events for each change that
+occured since this function was last called.
+Each event has a <type> and <user_index> associated.
+The other variables vary."""
     global _last_states, _connected, _last_checked, _button_dict, _last_norm_values
     this_time = time.time()
     these_states = (State(), State(), State(), State())
@@ -501,316 +550,157 @@ def get_events():
             _last_norm_values[3] = out
 
     _last_states = these_states
-
-# Event handler class to be extended to use dynamic events
-class GamepadEventsHandler:
-    def __init__(self, filter = FILTER_NONE):
-        self.filters = [filter]*4
     
-    def on_button_event(self, event):
+class EventHandler:
+    def __init__(self, *controllers, filter = FILTER_NONE):
+        self.set_controllers(*controllers)
+        
+        self.filter = filter
+    
+    def process_button_event(self, event):
         raise NotImplementedError("Method not implemented. Must be implemented in the child class")
 
-    def on_stick_event(self, event):
+    def process_stick_event(self, event):
         raise NotImplementedError("Method not implemented. Must be implemented in the child class")
 
-    def on_trigger_event(self, event):
+    def process_trigger_event(self, event):
         raise NotImplementedError("Method not implemented. Must be implemented in the child class")
 
-    def on_connection_event(self, event):
+    def process_connection_event(self, event):
         raise NotImplementedError("Method not implemented. Must be implemented in the child class")
 
-    # the filter is the sum of the buttons that must be shown
-    # the list of possible inputs to be filtered is:
-    # * button values (1,2,4,8, ...)
-    # * 0x010000 or 65536 for left stick
-    # * 0x020000 or 131072 for right stick
-    # * 0x040000 or 262144 for left trigger
-    # * 0x080000 or 524288 for right trigger
-    #
-    # additional values are available to filter only one kind of events wich is only button down and only button down:
-    # FILTER_DOWN_ONLY
-    # FILTER_UP_ONLY 
-    #
-    # example1: add_filter(BUTTON_X + BUTTON_Y + BUTTON_DPAD_UP) will add a filter for all players that allow events only for the X, Y and DPAD_UP buttons
-    # example2: add_filter(BUTTON_A + FILTER_DOWN_ONLY, [1,3]) will add the filter only for player 1 and 3 and only when the button is pressed down
-    # NOTE: Controller events are not maskable
-    def add_filter(self, filter, controller = [0,1,2,3]):
-        for i in controller:
-            if(self.filters[i] == FILTER_NONE):
-                self.filters[i] = filter
-            else:
-                self.filters[i] |=filter
+
+    def add_controller(self, user_index):
+        """Adds a given controller to the ones that are processed"""
+        assert 0 <= user_index <= 3, "controllers must have a user_index between 0 and 3"
+
+        self.controllers.add(user_index)
+
+    def set_controllers(self, *controllers):
+        """Sets the controllers that are processed"""
+        if not controllers:
+            raise ValueError("You need to specify at least one controller")
+        
+        for user_index in controllers:
+            assert 0 <= user_index <= 3, "controllers must have a user_index between 0 and 3"
+
+        self.controllers = set(controllers)
+
+    def remove_controller(self, user_index):
+        """Removes a given controller from the ones that are processed"""
+        assert 0 <= user_index <= 3, "controllers must have a user_index between 0 and 3"
+
+        assert len(self.controllers) >= 2, "you have to keep at least one controller"
+    
+        try:
+            self.controllers.remove(user_index)
+            return True
+        except KeyError:
+            return False
+
+    def has_controller(self, user_index):
+        """Checks, wether or not this handler handles controller <user_index>"""
+        assert 0 <= user_index <= 3, "controllers must have a user_index between 0 and 3"
+
+        return user_index in self.controllers
+    
+    def set_filter(self, filter_):
+        """Applies a new filter mask to this handler.
+A filter can be any combination of filters, such as
+(BUTTON_A | BUTTON_B) to only get events for buttons A and B or
+(FILTER_RELEASED_ONLY | BUTTON_Y) to get an event when Y is released."""
+        self.filter = filter_
     
     # remove any filter
     # the "controller" attribute remove the filter only for the selected controller. By default will remove every filter
-    def clear_filters(self, controller = [0,1,2,3]):
-        self.filters[controller] = []
+    def clear_filter(self):
+        """Removes all filters"""
+        self.filter = FILTER_NONE
 
 
 class GamepadThread:
-    def __init__(self, events_handlers, auto_start=True):
-        if not isinstance(events_handlers, list):
-            events_handlers = [events_handlers]
-        for ev in events_handlers:
-            if (ev is None or not issubclass(type(ev), GamepadEventsHandler)):
-                raise TypeError("The event handler must be a subclass of XInput.GamepadEventsHandler")
-        self.handlers = events_handlers
-        self.filters = [FILTER_NONE]*4     # by default none of the input is filtered (masking also up and down filter for buttons)
+    def __init__(self, *event_handlers, auto_start=True):
+        for event_handler in event_handlers:
+            if (event_handler is None or not issubclass(type(event_handler), EventHandler)):
+                raise TypeError("The event handler must be a subclass of XInput.EventHandler")
+            
+        self.handlers = set(event_handlers)
+
+        self.lock = Lock()
+
+        self.queued_new_handlers = []
+        self.queued_removed_handlers = []
+        
         if auto_start:
-            self.start_thread()
+            self.start()
 
     def __tfun(self):           # thread function
-        while(self.isRunning):  # polling
+        while(self.running):  # polling
+            self.lock.acquire()
+            for new_handler in self.queued_new_handlers:
+                self.handlers.add(new_handler)
+                
+            for removed_handler in self.queued_removed_handlers:
+                if removed_handler in self.handlers:
+                    self.handlers.remove(removed_handler)
+            self.queued_new_handlers.clear()
+            self.queued_removed_handlers.clear()
+            self.lock.release()
+            
             events = get_events()
-            for e in events:    # filtering events
-                if e.type == EVENT_CONNECTED or e.type == EVENT_DISCONNECTED:
-                    for h in self.handlers:
-                        h.on_connection_event(e)
-                elif e.type == EVENT_BUTTON_PRESSED or e.type == EVENT_BUTTON_RELEASED:
-                    for h in self.handlers:
-                        if not((h.filters[e.user_index] & (FILTER_DOWN_ONLY+FILTER_UP_ONLY)) and not(h.filters[e.user_index] & (FILTER_DOWN_ONLY << (e.type - EVENT_BUTTON_PRESSED)))):
-                            if e.button_id & h.filters[e.user_index]:
-                                h.on_button_event(e)
-                elif e.type == EVENT_TRIGGER_MOVED:
-                    for h in self.handlers:
-                        if (TRIGGER_LEFT << e.trigger) & h.filters[e.user_index]:
-                            h.on_trigger_event(e)
-                elif e.type == EVENT_STICK_MOVED:
-                    for h in self.handlers:
-                        if (STICK_LEFT << e.stick) & h.filters[e.user_index]:
-                            h.on_stick_event(e)
+            for event in events:    # filtering events
+                if event.type == EVENT_CONNECTED or event.type == EVENT_DISCONNECTED:
+                    for handler in self.handlers:
+                        if handler.has_controller(event.user_index):
+                            handler.process_connection_event(event)
+                            
+                elif event.type == EVENT_BUTTON_PRESSED or event.type == EVENT_BUTTON_RELEASED:
+                    for handler in self.handlers:
+                        if handler.has_controller(event.user_index):
+                            if not((handler.filter & (FILTER_PRESSED_ONLY+FILTER_RELEASED_ONLY)) and not(handler.filter & (FILTER_PRESSED_ONLY << (event.type - EVENT_BUTTON_PRESSED)))):
+                                if event.button_id & handler.filter:
+                                    handler.process_button_event(event)
+                elif event.type == EVENT_TRIGGER_MOVED:
+                    for handler in self.handlers:
+                        if handler.has_controller(event.user_index):
+                            if (TRIGGER_LEFT << event.trigger) & handler.filter:
+                                handler.process_trigger_event(event)
+                elif event.type == EVENT_STICK_MOVED:
+                    for handler in self.handlers:
+                        if handler.has_controller(event.user_index):
+                            if (STICK_LEFT << event.stick) & handler.filter:
+                                handler.process_stick_event(event)
                 else: 
                     raise ValueError("Event type not recognized")
                 
 
-    def start_thread(self):     # starts the thread
-        self.isRunning = True
-        if(not hasattr(self,"__t")):
-            self.__t = Thread(target=self.__tfun, args=())
-            self.__t.daemon = True
-        self.__t.start()
+    def start(self):     # starts the thread
+        self.running = True
+        if(not hasattr(self,"__thread")):
+            self.__thread = Thread(target=self.__tfun, args=())
+            self.__thread.daemon = True
+        self.__thread.start()
 
-    def stop_thread(self):      # stops the thread
-        self.isRunning = False
+    def stop(self):      # stops the thread
+        self.running = False
+        self.__thread.join()
     
     def add_event_handler(self, event_handler):
-        if (event_handler is None or not issubclass(type(event_handler), GamepadEventsHandler)):
-            raise TypeError("The event handler must be a subclass of XInput.GamepadEventsHandler")
-        self.handlers.append(event_handler)
+        if (event_handler is None or not issubclass(type(event_handler), EventHandler)):
+            raise TypeError("The event handler must be a subclass of XInput.EventHandler")
+        self.lock.acquire()
+        self.queued_new_handlers.append(event_handler)
+        self.lock.release()
 
     def remove_event_handler(self, event_handler):
-        try:
-            self.handlers.remove(event_handler)
-            return True
-        except ValueError:
-            return False
+        if (event_handler is None or not issubclass(type(event_handler), EventHandler)):
+            raise TypeError("The event handler must be a subclass of XInput.EventHandler")
+        self.lock.acquire()
+        self.queued_removed_handlers.append(event_handler)
+        self.lock.release()
 
-
-
-if __name__ == "__main__":
-    try:
-        import tkinter as tk
-    except ImportError:
-        import Tkinter as tk
-
-    root = tk.Tk()
-    root.title("XInput")
-    canvas = tk.Canvas(root, width= 600, height = 400, bg="white")
-    canvas.pack()
-    
-    set_deadzone(DEADZONE_TRIGGER,10)
-
-    class Controller:
-        def __init__(self, center):
-            self.center = center
-
-            self.on_indicator_pos = (self.center[0], self.center[1] - 50)
-
-            self.on_indicator = canvas.create_oval(((self.on_indicator_pos[0] - 10, self.on_indicator_pos[1] - 10), (self.on_indicator_pos[0] + 10, self.on_indicator_pos[1] + 10)))
-            
-            self.r_thumb_pos = (self.center[0] + 50, self.center[1] + 20)
-
-            r_thumb_outline = canvas.create_oval(((self.r_thumb_pos[0] - 25, self.r_thumb_pos[1] - 25), (self.r_thumb_pos[0] + 25, self.r_thumb_pos[1] + 25)))
-
-            r_thumb_stick_pos = self.r_thumb_pos
-
-            self.r_thumb_stick = canvas.create_oval(((r_thumb_stick_pos[0] - 10, r_thumb_stick_pos[1] - 10), (r_thumb_stick_pos[0] + 10, r_thumb_stick_pos[1] + 10)))
-
-            self.l_thumb_pos = (self.center[0] - 100, self.center[1] - 20)
-
-            l_thumb_outline = canvas.create_oval(((self.l_thumb_pos[0] - 25, self.l_thumb_pos[1] - 25), (self.l_thumb_pos[0] + 25, self.l_thumb_pos[1] + 25)))
-
-            l_thumb_stick_pos = self.l_thumb_pos
-
-            self.l_thumb_stick = canvas.create_oval(((l_thumb_stick_pos[0] - 10, l_thumb_stick_pos[1] - 10), (l_thumb_stick_pos[0] + 10, l_thumb_stick_pos[1] + 10)))
-
-            self.l_trigger_pos = (self.center[0] - 120, self.center[1] - 70)
-
-            l_trigger_outline = canvas.create_rectangle(((self.l_trigger_pos[0] - 5, self.l_trigger_pos[1] - 20), (self.l_trigger_pos[0] + 5, self.l_trigger_pos[1] + 20)))
-
-            l_trigger_index_pos = (self.l_trigger_pos[0], self.l_trigger_pos[1] - 20)
-
-            self.l_trigger_index = canvas.create_rectangle(((l_trigger_index_pos[0] - 10, l_trigger_index_pos[1] - 5), (l_trigger_index_pos[0] + 10, l_trigger_index_pos[1] + 5)))
-
-            self.r_trigger_pos = (self.center[0] + 120, self.center[1] - 70)
-
-            r_trigger_outline = canvas.create_rectangle(((self.r_trigger_pos[0] - 5, self.r_trigger_pos[1] - 20), (self.r_trigger_pos[0] + 5, self.r_trigger_pos[1] + 20)))
-
-            r_trigger_index_pos = (self.r_trigger_pos[0], self.r_trigger_pos[1] - 20)
-
-            self.r_trigger_index = canvas.create_rectangle(((r_trigger_index_pos[0] - 10, r_trigger_index_pos[1] - 5), (r_trigger_index_pos[0] + 10, r_trigger_index_pos[1] + 5)))
-
-            buttons_pos = (self.center[0] + 100, self.center[1] - 20)
-
-            A_button_pos = (buttons_pos[0], buttons_pos[1] + 20)
-
-            B_button_pos = (buttons_pos[0] + 20, buttons_pos[1])
-
-            Y_button_pos = (buttons_pos[0], buttons_pos[1] - 20)
-
-            X_button_pos = (buttons_pos[0] - 20, buttons_pos[1])
-
-            self.A_button = canvas.create_oval(((A_button_pos[0] - 10, A_button_pos[1] - 10), (A_button_pos[0] + 10, A_button_pos[1] + 10)))
-
-            self.B_button = canvas.create_oval(((B_button_pos[0] - 10, B_button_pos[1] - 10), (B_button_pos[0] + 10, B_button_pos[1] + 10)))
-
-            self.Y_button = canvas.create_oval(((Y_button_pos[0] - 10, Y_button_pos[1] - 10), (Y_button_pos[0] + 10, Y_button_pos[1] + 10)))
-
-            self.X_button = canvas.create_oval(((X_button_pos[0] - 10, X_button_pos[1] - 10), (X_button_pos[0] + 10, X_button_pos[1] + 10)))
-
-            dpad_pos = (self.center[0] - 50, self.center[1] + 20)
-
-            self.dpad_left = canvas.create_rectangle(((dpad_pos[0] - 30, dpad_pos[1] - 10), (dpad_pos[0] - 10, dpad_pos[1] + 10)), outline = "")
-
-            self.dpad_up = canvas.create_rectangle(((dpad_pos[0] - 10, dpad_pos[1] - 30), (dpad_pos[0] + 10, dpad_pos[1] - 10)), outline = "")
-
-            self.dpad_right = canvas.create_rectangle(((dpad_pos[0] + 10, dpad_pos[1] - 10), (dpad_pos[0] + 30, dpad_pos[1] + 10)), outline = "")
-
-            self.dpad_down = canvas.create_rectangle(((dpad_pos[0] - 10, dpad_pos[1] + 10), (dpad_pos[0] + 10, dpad_pos[1] + 30)), outline = "")
-
-            dpad_outline = canvas.create_polygon(((dpad_pos[0] - 30, dpad_pos[1] - 10), (dpad_pos[0] - 10, dpad_pos[1] - 10), (dpad_pos[0] - 10, dpad_pos[1] - 30), (dpad_pos[0] + 10, dpad_pos[1] - 30),
-                                                  (dpad_pos[0] + 10, dpad_pos[1] - 10), (dpad_pos[0] + 30, dpad_pos[1] - 10), (dpad_pos[0] + 30, dpad_pos[1] + 10), (dpad_pos[0] + 10, dpad_pos[1] + 10),
-                                                  (dpad_pos[0] + 10, dpad_pos[1] + 30), (dpad_pos[0] - 10, dpad_pos[1] + 30), (dpad_pos[0] - 10, dpad_pos[1] + 10), (dpad_pos[0] - 30, dpad_pos[1] + 10)),
-                                                 fill = "", outline = "black")
-
-            back_button_pos = (self.center[0] - 20, self.center[1] - 20)
-
-            self.back_button = canvas.create_oval(((back_button_pos[0] - 5, back_button_pos[1] - 5), (back_button_pos[0] + 5, back_button_pos[1] + 5)))
-
-            start_button_pos = (self.center[0] + 20, self.center[1] - 20)
-
-            self.start_button = canvas.create_oval(((start_button_pos[0] - 5, start_button_pos[1] - 5), (start_button_pos[0] + 5, start_button_pos[1] + 5)))
-
-            l_shoulder_pos = (self.center[0] - 90, self.center[1] - 70)
-
-            self.l_shoulder = canvas.create_rectangle(((l_shoulder_pos[0] - 20, l_shoulder_pos[1] - 5), (l_shoulder_pos[0] + 20, l_shoulder_pos[1] + 10)))
-
-            r_shoulder_pos = (self.center[0] + 90, self.center[1] - 70)
-
-            self.r_shoulder = canvas.create_rectangle(((r_shoulder_pos[0] - 20, r_shoulder_pos[1] - 10), (r_shoulder_pos[0] + 20, r_shoulder_pos[1] + 5)))
-
-    controllers = (Controller((150., 100.)),
-                   Controller((450., 100.)),
-                   Controller((150., 300.)),
-                   Controller((450., 300.)))
-
-    while 1:
-        events = get_events()
-        for event in events:
-            controller = controllers[event.user_index]
-            if event.type == EVENT_CONNECTED:
-                canvas.itemconfig(controller.on_indicator, fill="light green")
-                
-            elif event.type == EVENT_DISCONNECTED:
-                canvas.itemconfig(controller.on_indicator, fill="")
-                
-            elif event.type == EVENT_STICK_MOVED:
-                if event.stick == LEFT:
-                    l_thumb_stick_pos = (int(round(controller.l_thumb_pos[0] + 25 * event.x,0)), int(round(controller.l_thumb_pos[1] - 25 * event.y,0)))
-                    canvas.coords(controller.l_thumb_stick, (l_thumb_stick_pos[0] - 10, l_thumb_stick_pos[1] - 10, l_thumb_stick_pos[0] + 10, l_thumb_stick_pos[1] + 10))
-                    
-                elif event.stick == RIGHT:
-                    r_thumb_stick_pos = (int(round(controller.r_thumb_pos[0] + 25 * event.x,0)), int(round(controller.r_thumb_pos[1] - 25 * event.y,0)))
-                    canvas.coords(controller.r_thumb_stick, (r_thumb_stick_pos[0] - 10, r_thumb_stick_pos[1] - 10, r_thumb_stick_pos[0] + 10, r_thumb_stick_pos[1] + 10))
-
-            elif event.type == EVENT_TRIGGER_MOVED:
-                if event.trigger == LEFT:
-                    l_trigger_index_pos = (controller.l_trigger_pos[0], controller.l_trigger_pos[1] - 20 + int(round(40 * event.value, 0)))
-                    canvas.coords(controller.l_trigger_index, (l_trigger_index_pos[0] - 10, l_trigger_index_pos[1] - 5, l_trigger_index_pos[0] + 10, l_trigger_index_pos[1] + 5))
-                elif event.trigger == RIGHT:
-                    r_trigger_index_pos = (controller.r_trigger_pos[0], controller.r_trigger_pos[1] - 20 + int(round(40 * event.value, 0)))
-                    canvas.coords(controller.r_trigger_index, (r_trigger_index_pos[0] - 10, r_trigger_index_pos[1] - 5, r_trigger_index_pos[0] + 10, r_trigger_index_pos[1] + 5))
-
-            elif event.type == EVENT_BUTTON_PRESSED:
-                if event.button == "LEFT_THUMB":
-                    canvas.itemconfig(controller.l_thumb_stick, fill="red")
-                elif event.button == "RIGHT_THUMB":
-                    canvas.itemconfig(controller.r_thumb_stick, fill="red")
-
-                elif event.button == "LEFT_SHOULDER":
-                    canvas.itemconfig(controller.l_shoulder, fill="red")
-                elif event.button == "RIGHT_SHOULDER":
-                    canvas.itemconfig(controller.r_shoulder, fill="red")
-
-                elif event.button == "BACK":
-                    canvas.itemconfig(controller.back_button, fill="red")
-                elif event.button == "START":
-                    canvas.itemconfig(controller.start_button, fill="red")
-
-                elif event.button == "DPAD_LEFT":
-                    canvas.itemconfig(controller.dpad_left, fill="red")
-                elif event.button == "DPAD_RIGHT":
-                    canvas.itemconfig(controller.dpad_right, fill="red")
-                elif event.button == "DPAD_UP":
-                    canvas.itemconfig(controller.dpad_up, fill="red")
-                elif event.button == "DPAD_DOWN":
-                    canvas.itemconfig(controller.dpad_down, fill="red")
-
-                elif event.button == "A":
-                    canvas.itemconfig(controller.A_button, fill="red")
-                elif event.button == "B":
-                    canvas.itemconfig(controller.B_button, fill="red")
-                elif event.button == "Y":
-                    canvas.itemconfig(controller.Y_button, fill="red")
-                elif event.button == "X":
-                    canvas.itemconfig(controller.X_button, fill="red")
-
-            elif event.type == EVENT_BUTTON_RELEASED:
-                if event.button == "LEFT_THUMB":
-                    canvas.itemconfig(controller.l_thumb_stick, fill="")
-                elif event.button == "RIGHT_THUMB":
-                    canvas.itemconfig(controller.r_thumb_stick, fill="")
-
-                elif event.button == "LEFT_SHOULDER":
-                    canvas.itemconfig(controller.l_shoulder, fill="")
-                elif event.button == "RIGHT_SHOULDER":
-                    canvas.itemconfig(controller.r_shoulder, fill="")
-
-                elif event.button == "BACK":
-                    canvas.itemconfig(controller.back_button, fill="")
-                elif event.button == "START":
-                    canvas.itemconfig(controller.start_button, fill="")
-
-                elif event.button == "DPAD_LEFT":
-                    canvas.itemconfig(controller.dpad_left, fill="")
-                elif event.button == "DPAD_RIGHT":
-                    canvas.itemconfig(controller.dpad_right, fill="")
-                elif event.button == "DPAD_UP":
-                    canvas.itemconfig(controller.dpad_up, fill="")
-                elif event.button == "DPAD_DOWN":
-                    canvas.itemconfig(controller.dpad_down, fill="")
-
-                elif event.button == "A":
-                    canvas.itemconfig(controller.A_button, fill="")
-                elif event.button == "B":
-                    canvas.itemconfig(controller.B_button, fill="")
-                elif event.button == "Y":
-                    canvas.itemconfig(controller.Y_button, fill="")
-                elif event.button == "X":
-                    canvas.itemconfig(controller.X_button, fill="")
-
-        try:          
-            root.update()
-        except tk.TclError:
-            break
+    def __del__(self):
+        if hasattr(self, "__thread"):
+            self.stop()
+#/defining custom classes and methods #
     
