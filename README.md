@@ -15,7 +15,7 @@ It can be inmported like this:
   
 ### Using XInput\-Python  
 XInput\-Python provides a few functions:  
-`get_connected() -> (bool, bool, bool, bool)` Query which controllers are connected \(note: don't query each frame\)  
+`get_connected() -> (bool, bool, bool, bool)` Query which controllers are connected (note: don't query each frame)  
   
 `get_state(user_index) -> State` Gets the State of the controller `user_index`  
   
@@ -32,11 +32,11 @@ XInput\-Python provides a few functions:
 `set_deadzone(deadzone, value) -> None` Sets the deadzone values for left/right thumb stick and triggers\.  
   
 The following deadzones exist:  
-`XInput.DEADZONE_LEFT_THUMB` \- \(range 0 to 32767\) Left thumb stick deadzone \(default is 7849\)  
+`XInput.DEADZONE_LEFT_THUMB` \- (range 0 to 32767) Left thumb stick deadzone (default is 7849)  
   
-`XInput.DEADZONE_RIGHT_THUMB` \- \(range 0 to 32767\) Right thumb stick deadzone \(default is 8689\)  
+`XInput.DEADZONE_RIGHT_THUMB` \- (range 0 to 32767) Right thumb stick deadzone (default is 8689)  
   
-`XInput.DEADZONE_TRIGGER` \- \(range 0 to 255\) Trigger deadzone \(default is 30\)  
+`XInput.DEADZONE_TRIGGER` \- (range 0 to 255) Trigger deadzone (default is 30)  
   
 #### Using Events  
 You can also use the Event\-system:  
@@ -47,11 +47,11 @@ You can also use the Event\-system:
 `get_events` will return a generator that yields instances of the `Event` class\.  
   
 The `Event` class always has the following members:  
-`Event.user_index` \(range 0 to 3\) \- the id of the controller that issued this event  
+`Event.user_index` (range 0 to 3) \- the id of the controller that issued this event  
 `Event.type` \- which type of event was issued  
   
 The following events exist:  
-`XInput.EVENT_CONNECTED == 1` \- a controller with this `user_index` was connected \(this event will even occur if the controller was connected before the script was started\)  
+`XInput.EVENT_CONNECTED == 1` \- a controller with this `user_index` was connected (this event will even occur if the controller was connected before the script was started)  
   
 `XInput.EVENT_DISCONNECTED == 2` \- a controller with this `user_index` was disconnected  
   
@@ -89,16 +89,88 @@ The following buttons exist:
   
 **Trigger Events**  
 All trigger related Events have the following additional members:  
-`Event.trigger` \(either `XInput.LEFT == 0` or `XInput.RIGHT == 1`\) \- which trigger was moved  
-`Event.value` \(range 0\.0 to 1\.0\) \- by how much the trigger is currently pressed  
+`Event.trigger` (either `XInput.LEFT == 0` or `XInput.RIGHT == 1`) \- which trigger was moved  
+`Event.value` (range 0\.0 to 1\.0) \- by how much the trigger is currently pressed  
   
 **Stick Events**  
 All thumb stick related Events have the following additional members:  
-`Event.stick` \(either `XInput.LEFT == 0` or `XInput.RIGHT == 1`\) \- which stick was moved  
-`Event.x` \(range \-1\.0 to 1\.0\) \- the position of the stick on the X axis  
-`Event.y` \(range \-1\.0 to 1\.0\) \- the position of the stick on the Y axis  
-`Event.value` \(range 0\.0 to 1\.0\) \- the distance of the stick from it's center position  
-`Event.dir` \(tuple of X and Y\) \- the direction the stick is currently pointing  
+`Event.stick` (either `XInput.LEFT == 0` or `XInput.RIGHT == 1`) \- which stick was moved  
+`Event.x` (range \-1\.0 to 1\.0) \- the position of the stick on the X axis  
+`Event.y` (range \-1\.0 to 1\.0) \- the position of the stick on the Y axis  
+`Event.value` (range 0\.0 to 1\.0) \- the distance of the stick from it's center position  
+`Event.dir` (tuple of X and Y) \- the direction the stick is currently pointing  
+  
+### Callback events and threading  
+With the `GamepadThread` class it is possible to handle asynchronous events\.  
+To use this feature, extend the `EventHandler` to create one or multiple handlers and add them to the thread\.  
+The library will automatically check the status of the gamepad and use the appropriate callback for the triggering event\.  
+It is also possible to filter the inputs for every single handler\.  
+In case of multiple handlers it is possible to use a list of handlers as argument, as well as the `add_handler()` method and the `remove_handler()` method to remove them\.  
+Filters can be applied to select events of only certain buttons, trigger or stick\. Also a "pressed\-only" and "released\-only" filter is available for buttons\.  
+The available filters are:  
+
+    
+    BUTTON_DPAD_UP       
+    BUTTON_DPAD_DOWN     
+    BUTTON_DPAD_LEFT     
+    BUTTON_DPAD_RIGHT    
+    BUTTON_START         
+    BUTTON_BACK          
+    BUTTON_LEFT_THUMB    
+    BUTTON_RIGHT_THUMB   
+    BUTTON_LEFT_SHOULDER 
+    BUTTON_RIGHT_SHOULDER
+    BUTTON_A             
+    BUTTON_B             
+    BUTTON_X             
+    BUTTON_Y             
+    
+    STICK_LEFT           
+    STICK_RIGHT          
+    TRIGGER_LEFT         
+    TRIGGER_RIGHT        
+    
+    FILTER_PRESSED_ONLY     
+    FILTER_RELEASED_ONLY
+    
+       
+  
+The filters can be combined by adding them together:  
+  
+
+    filter1 = STICK_LEFT + STICK_RIGHT + BUTTON_DPAD_DOWN + BUTTON_DPAD_UP
+    filter2 = BUTTON_Y + BUTTON_X + FILTER_PRESSED_ONLY
+  
+  
+The filter can be applied using add\_filter:  
+  
+
+    handler.add_filter(filter)
+  
+  
+**Example**  
+
+    class MyHandler(EventHandler):
+        def process_button_event(self, event):
+            # put here the code to parse every event related only to the buttons
+        
+        def process_trigger_event(self, event):
+            # event reserved for the two triggers
+        
+        def process_stick_event(self, event):
+            # event reserved for the two sticks
+        
+        def process_connection_event(self, event):
+            # event related to the gamepad status
+        
+    filter = STICK_LEFT + STICK_RIGHT
+    my_handler = MyHandler()
+    my_handler.add_filter(filter)
+    my_gamepad_thread = GamepadThread(my_handler)
+  
+  
+The thread will start automatically upon creation\. It is possible to stop and start it again if necessary with the two methods `start()` and `stop()`  
   
 ### Demo  
-Run `XInput.py` as main \(`python XInput.py`\) to see a visual representation of the controller input\.
+Run `XInputTest.py` to see a visual representation of the controller input\.  
+Run `XInputThreadTest.py` to test the visual representation using the asynchronous callbacks\.
