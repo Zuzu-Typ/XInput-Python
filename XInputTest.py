@@ -19,7 +19,7 @@ class Controller:
         self.on_indicator_pos = (self.center[0], self.center[1] - 50)
 
         self.on_indicator = canvas.create_oval(((self.on_indicator_pos[0] - 10, self.on_indicator_pos[1] - 10), (self.on_indicator_pos[0] + 10, self.on_indicator_pos[1] + 10)))
-        
+
         self.r_thumb_pos = (self.center[0] + 50, self.center[1] + 20)
 
         r_thumb_outline = canvas.create_oval(((self.r_thumb_pos[0] - 25, self.r_thumb_pos[1] - 25), (self.r_thumb_pos[0] + 25, self.r_thumb_pos[1] + 25)))
@@ -112,15 +112,15 @@ while 1:
         controller = controllers[event.user_index]
         if event.type == EVENT_CONNECTED:
             canvas.itemconfig(controller.on_indicator, fill="light green")
-            
+
         elif event.type == EVENT_DISCONNECTED:
             canvas.itemconfig(controller.on_indicator, fill="")
-            
+
         elif event.type == EVENT_STICK_MOVED:
             if event.stick == LEFT:
                 l_thumb_stick_pos = (int(round(controller.l_thumb_pos[0] + 25 * event.x,0)), int(round(controller.l_thumb_pos[1] - 25 * event.y,0)))
                 canvas.coords(controller.l_thumb_stick, (l_thumb_stick_pos[0] - 10, l_thumb_stick_pos[1] - 10, l_thumb_stick_pos[0] + 10, l_thumb_stick_pos[1] + 10))
-                
+
             elif event.stick == RIGHT:
                 r_thumb_stick_pos = (int(round(controller.r_thumb_pos[0] + 25 * event.x,0)), int(round(controller.r_thumb_pos[1] - 25 * event.y,0)))
                 canvas.coords(controller.r_thumb_stick, (r_thumb_stick_pos[0] - 10, r_thumb_stick_pos[1] - 10, r_thumb_stick_pos[0] + 10, r_thumb_stick_pos[1] + 10))
@@ -148,6 +148,8 @@ while 1:
                 canvas.itemconfig(controller.back_button, fill="red")
             elif event.button == "START":
                 canvas.itemconfig(controller.start_button, fill="red")
+            elif event.button == "GUIDE":
+                canvas.itemconfig(controller.on_indicator, fill="red")
 
             elif event.button == "DPAD_LEFT":
                 canvas.itemconfig(controller.dpad_left, fill="red")
@@ -182,6 +184,8 @@ while 1:
                 canvas.itemconfig(controller.back_button, fill="")
             elif event.button == "START":
                 canvas.itemconfig(controller.start_button, fill="")
+            elif event.button == "GUIDE":
+                canvas.itemconfig(controller.on_indicator, fill="light green")
 
             elif event.button == "DPAD_LEFT":
                 canvas.itemconfig(controller.dpad_left, fill="")
@@ -201,7 +205,7 @@ while 1:
             elif event.button == "X":
                 canvas.itemconfig(controller.X_button, fill="")
 
-    try:          
+    try:
         root.update()
     except tk.TclError:
         break

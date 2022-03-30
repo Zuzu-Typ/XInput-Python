@@ -60,6 +60,7 @@ BUTTON_DPAD_UP                  = 0x000001
 BUTTON_DPAD_DOWN                = 0x000002
 BUTTON_DPAD_LEFT                = 0x000004
 BUTTON_DPAD_RIGHT               = 0x000008
+BUTTON_GUIDE                    = 0x000400
 BUTTON_START                    = 0x000010
 BUTTON_BACK                     = 0x000020
 BUTTON_LEFT_THUMB               = 0x000040
@@ -129,7 +130,7 @@ libXInput.XInputGetState.argtypes = [DWORD, POINTER(XINPUT_STATE)]
 libXInput.XInputGetState.restype = DWORD
 
 def XInputGetState(dwUserIndex, state):
-    return libXInput.XInputGetState(dwUserIndex, ctypes.byref(state))
+    return libXInput[100](dwUserIndex, ctypes.byref(state))
 
 libXInput.XInputSetState.argtypes = [DWORD, POINTER(XINPUT_VIBRATION)]
 libXInput.XInputSetState.restype = DWORD
@@ -181,6 +182,7 @@ _button_dict = {0x0001 : "DPAD_UP",
                 0x0002 : "DPAD_DOWN",
                 0x0004 : "DPAD_LEFT",
                 0x0008 : "DPAD_RIGHT",
+                0x400  : "GUIDE",
                 0x0010 : "START",
                 0x0020 : "BACK",
                 0x0040 : "LEFT_THUMB",
@@ -210,9 +212,9 @@ DEADZONE_RIGHT_THUMB (default value is 8689, max is 32767)
 DEADZONE_LEFT_THUMB  (default value is 7849, max is 32767)
 DEADZONE_TRIGGER     (default value is 30,   max is 255  )"""
     global XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE, XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE, XINPUT_GAMEPAD_TRIGGER_THRESHOLD
-    
+
     assert dzone >= 0 and dzone <= 2, "invalid deadzone"
-    
+
     if value == DEADZONE_DEFAULT:
         value = 7849 if dzone == DEADZONE_LEFT_THUMB else \
                 8689 if dzone == DEADZONE_RIGHT_THUMB else \
@@ -255,7 +257,7 @@ Returns the raw state of the controller."""
 
     if res == ERROR_BAD_ARGUMENTS:
         raise XInputBadArgumentError("Controller [{}] doesn't exist. IDs range from 0 to 3.".format(user_index))
-    
+
     assert res == 0, "Couldn't get the state of controller [{}]. Is it disconnected?".format(user_index)
 
     return state
@@ -277,9 +279,9 @@ The speed ranges from 0.0 to 1.0 (float values) or
 
     if type(right_speed) == float and right_speed <= 1.0:
         right_speed = (round(65535 * right_speed, 0))
-        
+
     vibration = XINPUT_VIBRATION()
-    
+
     vibration.wLeftMotorSpeed = int(left_speed)
     vibration.wRightMotorSpeed = int(right_speed)
 
@@ -295,6 +297,7 @@ You can get the required state using get_state()"""
             "DPAD_DOWN" : bool(wButtons & 0x0002),
             "DPAD_LEFT" : bool(wButtons & 0x0004),
             "DPAD_RIGHT" : bool(wButtons & 0x0008),
+            "GUIDE" : bool(wButtons & 0x0400),
             "START" : bool(wButtons & 0x0010),
             "BACK" : bool(wButtons & 0x0020),
             "LEFT_THUMB" : bool(wButtons & 0x0040),
@@ -350,7 +353,7 @@ You can get the required state using get_state()"""
     else: # if magL == 0 the stick is centered, there is no direction
         normLX = 0
         normLY = 0
-    
+
     if magR != 0:
         normRX = RX / magR
         normRY = RY / magR
@@ -394,7 +397,7 @@ class Event:
 
     def __str__(self):
         return str(self.__dict__)
-        
+
 def get_events():
     """get_events() -> generator
 Returns a generator that yields events for each change that
@@ -550,13 +553,13 @@ The other variables vary."""
             _last_norm_values[3] = out
 
     _last_states = these_states
-    
+
 class EventHandler:
     def __init__(self, *controllers, filter = FILTER_NONE):
         self.set_controllers(*controllers)
-        
+
         self.filter = filter
-    
+
     def process_button_event(self, event):
         raise NotImplementedError("Method not implemented. Must be implemented in the child class")
 
@@ -580,7 +583,7 @@ class EventHandler:
         """Sets the controllers that are processed"""
         if not controllers:
             raise ValueError("You need to specify at least one controller")
-        
+
         for user_index in controllers:
             assert 0 <= user_index <= 3, "controllers must have a user_index between 0 and 3"
 
@@ -591,7 +594,7 @@ class EventHandler:
         assert 0 <= user_index <= 3, "controllers must have a user_index between 0 and 3"
 
         assert len(self.controllers) >= 2, "you have to keep at least one controller"
-    
+
         try:
             self.controllers.remove(user_index)
             return True
@@ -603,14 +606,14 @@ class EventHandler:
         assert 0 <= user_index <= 3, "controllers must have a user_index between 0 and 3"
 
         return user_index in self.controllers
-    
+
     def set_filter(self, filter_):
         """Applies a new filter mask to this handler.
 A filter can be any combination of filters, such as
 (BUTTON_A | BUTTON_B) to only get events for buttons A and B or
 (FILTER_RELEASED_ONLY | BUTTON_Y) to get an event when Y is released."""
         self.filter = filter_
-    
+
     # remove any filter
     # the "controller" attribute remove the filter only for the selected controller. By default will remove every filter
     def clear_filter(self):
@@ -623,14 +626,14 @@ class GamepadThread:
         for event_handler in event_handlers:
             if (event_handler is None or not issubclass(type(event_handler), EventHandler)):
                 raise TypeError("The event handler must be a subclass of XInput.EventHandler")
-            
+
         self.handlers = set(event_handlers)
 
         self.lock = Lock()
 
         self.queued_new_handlers = []
         self.queued_removed_handlers = []
-        
+
         if auto_start:
             self.start()
 
@@ -639,21 +642,21 @@ class GamepadThread:
             self.lock.acquire()
             for new_handler in self.queued_new_handlers:
                 self.handlers.add(new_handler)
-                
+
             for removed_handler in self.queued_removed_handlers:
                 if removed_handler in self.handlers:
                     self.handlers.remove(removed_handler)
             self.queued_new_handlers.clear()
             self.queued_removed_handlers.clear()
             self.lock.release()
-            
+
             events = get_events()
             for event in events:    # filtering events
                 if event.type == EVENT_CONNECTED or event.type == EVENT_DISCONNECTED:
                     for handler in self.handlers:
                         if handler.has_controller(event.user_index):
                             handler.process_connection_event(event)
-                            
+
                 elif event.type == EVENT_BUTTON_PRESSED or event.type == EVENT_BUTTON_RELEASED:
                     for handler in self.handlers:
                         if handler.has_controller(event.user_index):
@@ -670,9 +673,9 @@ class GamepadThread:
                         if handler.has_controller(event.user_index):
                             if (STICK_LEFT << event.stick) & handler.filter:
                                 handler.process_stick_event(event)
-                else: 
+                else:
                     raise ValueError("Event type not recognized")
-                
+
 
     def start(self):     # starts the thread
         self.running = True
@@ -684,7 +687,7 @@ class GamepadThread:
     def stop(self):      # stops the thread
         self.running = False
         self.__thread.join()
-    
+
     def add_event_handler(self, event_handler):
         if (event_handler is None or not issubclass(type(event_handler), EventHandler)):
             raise TypeError("The event handler must be a subclass of XInput.EventHandler")
@@ -703,4 +706,4 @@ class GamepadThread:
         if hasattr(self, "__thread"):
             self.stop()
 #/defining custom classes and methods #
-    
+
