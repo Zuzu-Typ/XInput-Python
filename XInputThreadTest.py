@@ -14,7 +14,7 @@ if __name__ == "__main__":
     root.title("XInput")
     canvas = tk.Canvas(root, width= 600, height = 400, bg="white")
     canvas.pack()
-    
+
     set_deadzone(DEADZONE_TRIGGER,10)
 
     class Controller:
@@ -24,7 +24,7 @@ if __name__ == "__main__":
             self.on_indicator_pos = (self.center[0], self.center[1] - 50)
 
             self.on_indicator = canvas.create_oval(((self.on_indicator_pos[0] - 10, self.on_indicator_pos[1] - 10), (self.on_indicator_pos[0] + 10, self.on_indicator_pos[1] + 10)))
-            
+
             self.r_thumb_pos = (self.center[0] + 50, self.center[1] + 20)
 
             r_thumb_outline = canvas.create_oval(((self.r_thumb_pos[0] - 25, self.r_thumb_pos[1] - 25), (self.r_thumb_pos[0] + 25, self.r_thumb_pos[1] + 25)))
@@ -135,6 +135,10 @@ if __name__ == "__main__":
                 canvas.itemconfig(controller.back_button, fill=fill_color)
             elif event.button == "START":
                 canvas.itemconfig(controller.start_button, fill=fill_color)
+            elif event.button == "GUIDE":
+                if fill_color == "":
+                    fill_color = "light green"
+                canvas.itemconfig(controller.on_indicator, fill=fill_color)
 
             elif event.button == "DPAD_LEFT":
                 canvas.itemconfig(controller.dpad_left, fill=fill_color)
@@ -153,13 +157,13 @@ if __name__ == "__main__":
                 canvas.itemconfig(controller.Y_button, fill=fill_color)
             elif event.button == "X":
                 canvas.itemconfig(controller.X_button, fill=fill_color)
-        
+
         def process_stick_event(self, event):
             controller = controllers[event.user_index]
             if event.stick == LEFT:
                 l_thumb_stick_pos = (int(round(controller.l_thumb_pos[0] + 25 * event.x,0)), int(round(controller.l_thumb_pos[1] - 25 * event.y,0)))
                 canvas.coords(controller.l_thumb_stick, (l_thumb_stick_pos[0] - 10, l_thumb_stick_pos[1] - 10, l_thumb_stick_pos[0] + 10, l_thumb_stick_pos[1] + 10))
-                
+
             elif event.stick == RIGHT:
                 r_thumb_stick_pos = (int(round(controller.r_thumb_pos[0] + 25 * event.x,0)), int(round(controller.r_thumb_pos[1] - 25 * event.y,0)))
                 canvas.coords(controller.r_thumb_stick, (r_thumb_stick_pos[0] - 10, r_thumb_stick_pos[1] - 10, r_thumb_stick_pos[0] + 10, r_thumb_stick_pos[1] + 10))
@@ -197,8 +201,8 @@ if __name__ == "__main__":
 
         def process_connection_event(self, event):
             pass
-    
-    
+
+
     handler = MyHandler(0, 1, 2, 3)        # initialize handler object
     thread = GamepadThread(handler)                 # initialize controller thread
 
