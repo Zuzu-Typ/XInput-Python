@@ -619,10 +619,18 @@ A filter can be any combination of filters, such as
 
 
 class GamepadThread:
-    def __init__(self, *event_handlers, auto_start=True):
+    def __init__(self, *event_handlers, auto_start=True, update_frequency=1000):
         for event_handler in event_handlers:
             if (event_handler is None or not issubclass(type(event_handler), EventHandler)):
                 raise TypeError("The event handler must be a subclass of XInput.EventHandler")
+
+        if not isinstance(update_frequency, (float, int)):
+            raise TypeError("Update_frequency must be a number")
+
+        if update_frequency <= 0:
+            raise ValueError("Update_frequency must be greater than 0")
+
+        self.__update_frequency = update_frequency
             
         self.handlers = set(event_handlers)
 
@@ -636,6 +644,7 @@ class GamepadThread:
 
     def __tfun(self):           # thread function
         while(self.running):  # polling
+            time.sleep(1 / self.__update_frequency)  # sleep to avoid overloading the CPU
             self.lock.acquire()
             for new_handler in self.queued_new_handlers:
                 self.handlers.add(new_handler)
